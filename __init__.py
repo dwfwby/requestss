@@ -1,50 +1,49 @@
 import urllib.parse, urllib.request
 import http.cookiejar
 
-class request:
-    def __init__(this, proxy = {}, needCookie = 0):
-        this._setProxy(proxy)
-        this._createCookieJar()
-        this._createCookieProcessor(needCookie)
-        this._createOpener()
-    
-    def get(this, url, headers = []):
-        return this.send(url, headers)
-    
-    def post(this, url, headers = [], data = {}):
-        return this.send(url, headers, data)
-    
-    def send(this, url, headers, data = {}):
-        data = this._normalBody(data)
-        this.setHeaders(headers)
-        return this._opener.open(url, data=data)
+def dictToList(d = None):
+    return d and list(d.items())
 
-    def readCookie(this, content):
-        return content.headers.get_all('Set-Cookie')
+def encodeBody(data = None):
+    return data and urllib.parse.urlencode(data).encode('ascii')
 
-    def setHeaders(this, headers):
-        this._opener.addheaders = this._normalHeaders(headers)
-    
-    def _normalHeaders(this, headers):
-        return headers and list(headers.items())
-    
-    def _normalBody(this, data = None):
-        return (data or None) and urllib.parse.urlencode(data).encode('ascii')
-    
-    def _normalProxies(this, proxy = None):
-        return proxy and {"http": f'http://{proxy}',"https": f'http://{proxy}'}
-    
-    def _setProxy(this, proxy = None):
-        this._createProxyHandler(this._normalProxies(proxy))
-    
-    def _createProxyHandler(this, args):
-        this._proxy_handler = urllib.request.ProxyHandler(args)
-    
-    def _createCookieJar(this):
-        this._cj = http.cookiejar.CookieJar()
-    
-    def _createCookieProcessor(this, status):
-        this._cproc = urllib.request.HTTPCookieProcessor(this._cj) if status else None
-    
-    def _createOpener(this):
-        this._opener = urllib.request.build_opener(this._proxy_handler, this._cproc)
+def normalProxies(proxy = None):
+    return proxy and {"http": f'http://{proxy}'}
+
+def simpleCookieProcessor():
+    return createCookieProcessor(createCookieJar())
+
+def simpleProxyHandler(proxy = None):
+    return createProxyHandler(normalProxies(proxy))
+
+def simpleOpener(proxy = None):
+    return createOpener(simpleProxyHandler(proxy), simpleCookieProcessor())
+
+def createProxyHandler(args):
+    return urllib.request.ProxyHandler(args)
+
+def createCookieJar():
+    return http.cookiejar.CookieJar()
+
+def createCookieProcessor(cookie_jar):
+    return urllib.request.HTTPCookieProcessor(cookie_jar)
+
+def createOpener(proxy_handler, cookie_processor):
+    return urllib.request.build_opener(proxy_handler, cookie_processor)
+
+def createSession(headers = [], proxy = None):
+    opener = simpleOpener(proxy)
+    opener.addheaders = dictToList(headers)
+    return opener
+
+def sessionSend(opener, url, data = None, timeout = 10):
+    return opener.open(url, data=encodeBody(data), timeout=timeout).read()
+
+def send(url, headers = {}, timeout = 10, proxy = None, data = None):
+    opener = createSession(headers, proxy)
+    response = sessionSend(opener, url, encodeBody(data), timeout)
+    opener.close()
+    return response
+
+def sendUTF8(url, headers = {}, timeout = 10, proxy = None, data = None):
+    return send(url, headers, timeout, proxy, data).decode('utf-8')
